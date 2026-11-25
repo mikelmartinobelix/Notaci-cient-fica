@@ -1,0 +1,6 @@
+{
+  "name": "Notació 10",
+  "description": "Aplicació educativa per practicar la notació científica: comparació, càlcul d'exponents, operacions i problemes de context per nivells.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
