@@ -27,6 +27,8 @@ jobs:
       - name: Instal·lar dependències
         run: npm install --legacy-peer-deps
       - name: Compilar aplicació
+        env:
+          VITE_SHEETS_WEBHOOK_URL: ${{ vars.SHEETS_WEBHOOK_URL }}
         run: npm run build
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5

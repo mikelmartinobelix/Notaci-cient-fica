@@ -11,6 +11,11 @@ export type PracticeFilter = ExerciseCategory | 'mixed';
 
 export type AppSection = 'practice' | 'explorer' | 'guide' | 'progress';
 
+export interface StudentProfile {
+  name: string;
+  group: string;
+}
+
 export interface ExactNum {
   coeff: bigint;
   exp: number;

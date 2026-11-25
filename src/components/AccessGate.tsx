@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, XCircle } from 'lucide-react';
 import { verifyClassroomPassword } from '../lib/accessAuth';
+import { StudentProfile } from '../types/exercise';
 
 interface AccessGateProps {
-  onUnlock: () => void;
+  onUnlock: (student: StudentProfile) => void;
 }
 
 export const AccessGate: React.FC<AccessGateProps> = ({ onUnlock }) => {
+  const [name, setName] = useState('');
+  const [group, setGroup] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +17,14 @@ export const AccessGate: React.FC<AccessGateProps> = ({ onUnlock }) => {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const cleanName = name.trim();
+    const cleanGroup = group.trim();
+
+    if (cleanName.length < 2) {
+      setError('Escriu el teu nom i cognoms per registrar la pràctica.');
+      return;
+    }
+
     if (!password) {
       setError('Introdueix la contrasenya per accedir-hi.');
       return;
@@ -24,7 +35,7 @@ export const AccessGate: React.FC<AccessGateProps> = ({ onUnlock }) => {
     try {
       const ok = await verifyClassroomPassword(password);
       if (ok) {
-        onUnlock();
+        onUnlock({ name: cleanName, group: cleanGroup });
       } else {
         setError('Contrasenya incorrecta. Torna-ho a provar.');
       }
@@ -45,12 +56,53 @@ export const AccessGate: React.FC<AccessGateProps> = ({ onUnlock }) => {
             Notació 10
           </h1>
           <p className="text-sm leading-relaxed text-slate-600">
-            Introdueix la contrasenya facilitada pel professorat per practicar
-            amb exercicis de notació científica.
+            Identifica’t i introdueix la contrasenya facilitada pel
+            professorat per començar a practicar.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="student-name"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Nom i cognoms
+            </label>
+            <input
+              id="student-name"
+              type="text"
+              autoFocus
+              maxLength={100}
+              autoComplete="name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="Ex: Marta Soler"
+              className="w-full h-11 px-3.5 text-base bg-white border border-slate-300 rounded-lg focus:border-blue-700 focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="student-group"
+              className="block text-sm font-medium text-slate-700"
+            >
+              Grup o classe
+            </label>
+            <input
+              id="student-group"
+              type="text"
+              maxLength={40}
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+              placeholder="Ex: 3r ESO A"
+              className="w-full h-11 px-3.5 text-base bg-white border border-slate-300 rounded-lg focus:border-blue-700 focus:outline-none"
+            />
+          </div>
+
           <div className="space-y-1.5">
             <label
               htmlFor="classroom-password"
@@ -62,7 +114,6 @@ export const AccessGate: React.FC<AccessGateProps> = ({ onUnlock }) => {
               <input
                 id="classroom-password"
                 type={showPassword ? 'text' : 'password'}
-                autoFocus
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => {

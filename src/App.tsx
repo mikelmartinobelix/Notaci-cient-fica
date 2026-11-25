@@ -13,18 +13,19 @@ import {
   Level,
   PracticeFilter,
   StoredProgress,
+  StudentProfile,
 } from './types/exercise';
 
 export default function App() {
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>('practice');
   const [filter, setFilter] = useState<PracticeFilter>('mixed');
   const [level, setLevel] = useState<Level>(1);
   const [seriesKey, setSeriesKey] = useState(1);
   const [progress, setProgress] = useState<StoredProgress>(() => loadProgress());
 
-  if (!isUnlocked) {
-    return <AccessGate onUnlock={() => setIsUnlocked(true)} />;
+  if (!student) {
+    return <AccessGate onUnlock={(profile) => setStudent(profile)} />;
   }
 
   function handleNewSeries() {
@@ -64,6 +65,7 @@ export default function App() {
       <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeSection === 'practice' && (
           <PracticeWorkspace
+            student={student}
             filter={filter}
             level={level}
             seriesKey={seriesKey}

@@ -24,6 +24,10 @@ import {
   parseSciInputToExact,
 } from '../lib/sciMath';
 import {
+  isSheetsReportingEnabled,
+  sendSeriesToSheets,
+} from '../lib/sheetsReporter';
+import {
   AttemptRecord,
   EvaluationResult,
   EvaluationStatus,
@@ -32,6 +36,7 @@ import {
   Level,
   PracticeFilter,
   StoredProgress,
+  StudentProfile,
 } from '../types/exercise';
 import { DecimalShiftDiagram, DisplayTermView, SciNumber } from './MathDisplay';
 
@@ -49,6 +54,7 @@ const FILTER_OPTIONS: PracticeFilter[] = [
 const LEVEL_OPTIONS: Level[] = [1, 2, 3];
 
 interface PracticeWorkspaceProps {
+  student: StudentProfile;
   filter: PracticeFilter;
   level: Level;
   seriesKey: number;
@@ -118,6 +124,7 @@ function getContextualRule(category: ExerciseCategory): RuleContent {
 }
 
 export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
+  student,
   filter,
   level,
   seriesKey,
@@ -133,6 +140,7 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
   );
   const [seriesAttempts, setSeriesAttempts] = useState<AttemptRecord[]>([]);
   const [seriesFinished, setSeriesFinished] = useState(false);
+  const [reportState, setReportState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   // Input states
   const [selectedRelation, setSelectedRelation] = useState<'<' | '=' | '>' | null>(
@@ -149,6 +157,8 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
 
   const mantissaRef = useRef<HTMLInputElement | null>(null);
   const expRef = useRef<HTMLInputElement | null>(null);
+  const autoSentRef = useRef(false);
+  const sheetsEnabled = isSheetsReportingEnabled();
 
   // Reset series when filter, level, or seriesKey changes
   useEffect(() => {
@@ -156,6 +166,8 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
     setExercise(generateExercise(filter, level));
     setSeriesAttempts([]);
     setSeriesFinished(false);
+    setReportState('idle');
+    autoSentRef.current = false;
     resetInputs();
   }, [filter, level, seriesKey]);
 
@@ -430,9 +442,30 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
     });
   }
 
+  async function submitToSheets(completedSeries: boolean) {
+    if (!sheetsEnabled || seriesAttempts.length === 0) return;
+    setReportState('sending');
+    const correctCount = seriesAttempts.filter((a) => a.status === 'correct').length;
+    const accuracyPct = Math.round((correctCount / seriesAttempts.length) * 100);
+    const ok = await sendSeriesToSheets(student, {
+      filter,
+      level,
+      attempted: seriesAttempts.length,
+      correct: correctCount,
+      accuracyPct,
+      bestStreak: progress.bestStreak,
+      completedSeries,
+    });
+    setReportState(ok ? 'sent' : 'error');
+  }
+
   function handleNextExercise() {
     if (exerciseIndex >= SERIES_LENGTH && evaluation) {
       setSeriesFinished(true);
+      if (sheetsEnabled && !autoSentRef.current) {
+        autoSentRef.current = true;
+        void submitToSheets(true);
+      }
       return;
     }
     if (evaluation) {
@@ -589,6 +622,39 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
                   </div>
                 </div>
               </div>
+
+              {sheetsEnabled && (
+                <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700 flex items-center gap-2.5">
+                  {reportState === 'sending' && (
+                    <span>Enviant resultats al registre de la classe...</span>
+                  )}
+                  {reportState === 'sent' && (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span className="font-medium text-emerald-900">
+                        Participació registrada al full del professorat ({student.name}
+                        {student.group ? ` · ${student.group}` : ''}).
+                      </span>
+                    </>
+                  )}
+                  {reportState === 'error' && (
+                    <>
+                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>
+                        No s’han pogut enviar ara mateix. Revisa la connexió i{' '}
+                        <button
+                          type="button"
+                          onClick={() => void submitToSheets(true)}
+                          className="underline font-semibold text-blue-700 cursor-pointer"
+                        >
+                          torna-ho a provar
+                        </button>
+                        .
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="pt-2 flex flex-wrap items-center gap-3">
                 <button
@@ -1061,13 +1127,19 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
         <aside className="space-y-6">
           {/* Session Metrics Card */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-base font-bold text-slate-900">
-                Estat de la sessió
-              </h2>
-              <span className="text-xs font-mono tabular-nums text-slate-500">
-                {seriesAttempts.length} / {SERIES_LENGTH}
-              </span>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-base font-bold text-slate-900">
+                  Estat de la sessió
+                </h2>
+                <span className="text-xs font-mono tabular-nums text-slate-500">
+                  {seriesAttempts.length} / {SERIES_LENGTH}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 truncate">
+                {student.name}
+                {student.group ? ` · ${student.group}` : ''}
+              </div>
             </div>
 
             {/* Clean linear progress bar */}
@@ -1103,6 +1175,23 @@ export const PracticeWorkspace: React.FC<PracticeWorkspaceProps> = ({
                 </div>
               </div>
             </div>
+
+            {sheetsEnabled && seriesAttempts.length > 0 && !seriesFinished && (
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={reportState === 'sending'}
+                  onClick={() => void submitToSheets(false)}
+                  className="w-full py-2 px-3 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {reportState === 'sending'
+                    ? 'Enviant resultats...'
+                    : reportState === 'sent'
+                    ? 'Resultats enviats (tornar a enviar)'
+                    : 'Enviar progrés al professorat'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Contextual Concept Rule Card */}
